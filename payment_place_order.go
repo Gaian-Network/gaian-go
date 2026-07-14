@@ -1,45 +1,64 @@
 package gaian
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+)
 
-// PlaceOrderRequest holds the parameters for a standard (on-chain) order.
+// PlaceOrderRequest consumes a quote from Quote or QuoteDirect. It fails
+// with a 409 if the quote is already consumed, expired, or was created
+// for the prefunded flow (use PlacePrefundedOrder for a QuotePrefund/
+// QuoteDirectPrefund QuoteID instead).
 type PlaceOrderRequest struct {
-	// Required
-	QRString       string         `json:"qrString"`
-	Amount         float64        `json:"amount"`
-	CryptoCurrency CryptoCurrency `json:"cryptoCurrency"`
-	FromAddress    string         `json:"fromAddress"`
-
-	// Optional
-	FiatCurrency         FiatCurrency `json:"fiatCurrency,omitempty"`
-	Chain                Chain        `json:"chain,omitempty"`
-	TransactionReference string       `json:"transactionReference,omitempty"`
-	RouteID              Route        `json:"routeId,omitempty"`
+	QuoteID string `json:"quoteId"`
 }
 
-// PlaceOrderResponse is returned by both standard and prefunded order placement.
+// PlaceOrderResponse carries the on-chain transaction the caller must
+// sign and broadcast to fund the order.
 type PlaceOrderResponse struct {
-	OrderID              string         `json:"orderId"`
-	Status               OrderStatus    `json:"status"`
-	FiatAmount           float64        `json:"fiatAmount"`
-	FiatCurrency         FiatCurrency   `json:"fiatCurrency"`
-	CryptoAmount         float64        `json:"cryptoAmount"`
-	CryptoCurrency       CryptoCurrency `json:"cryptoCurrency"`
-	ExchangeRate         float64        `json:"exchangeRate"`
-	QRInfo               QRInfo         `json:"qrInfo"`
-	CryptoTransferInfo   map[string]any `json:"cryptoTransferInfo"`
-	Timestamp            string         `json:"timestamp"`
-	TransactionReference string         `json:"transactionReference"`
-	RouteID              Route          `json:"routeId"`
-	IsPrefunded          bool           `json:"isPrefunded"`
+	OrderID            string  `json:"orderId"`
+	Status             int     `json:"status"`
+	StatusLabel        string  `json:"statusLabel"`
+	ChainID            ChainID `json:"chainId"`
+	DepositAddress     string  `json:"depositAddress"`
+	EncodedTransaction string  `json:"encodedTransaction"`
+	ExpiresAt          string  `json:"expiresAt"`
 }
 
-// PlaceOrder creates a standard payment order. The caller must then build,
-// sign, and broadcast the on-chain transaction, then call VerifyOrder.
-func (s *PaymentService) PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceOrderResponse, error) {
-	var resp PlaceOrderResponse
-	if err := s.c.post(ctx, s.c.pmtBaseURL, "/api/v1/placeOrder", req, &resp); err != nil {
+// PlaceOrder consumes a quote (from Quote or QuoteDirect) and creates an
+// order. After this call, sign and broadcast EncodedTransaction
+// on-chain yourself, then call VerifyOrder with the resulting
+// transaction hash.
+//
+// This is step 2 of the standard payment flow:
+//
+//	Quote → PlaceOrder → (sign & broadcast) → VerifyOrder → GetOrderStatus (poll)
+//
+// Example:
+//
+//	resp, err := client.PlaceOrder(ctx, &gaian.PlaceOrderRequest{QuoteID: quoteID})
+//	if err != nil {
+//		return err
+//	}
+//	// sign and broadcast resp.Data.EncodedTransaction on-chain, then:
+//	txHash := broadcastTransaction(resp.Data.EncodedTransaction)
+func (c *Client) PlaceOrder(ctx context.Context, req *PlaceOrderRequest) (*PaymentResponse[PlaceOrderResponse], error) {
+	apiRequest := request{
+		Method:   http.MethodPost,
+		Endpoint: "/api/v2/orders",
+		Params:   req,
+	}
+
+	rawResponse, err := c.excute(ctx, &apiRequest)
+	if err != nil {
 		return nil, err
 	}
-	return &resp, nil
+
+	response := new(PaymentResponse[PlaceOrderResponse])
+	if err := json.Unmarshal(rawResponse, response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }

@@ -5,6 +5,17 @@ import (
 	"fmt"
 )
 
+// NOTE: this file is not currently wired up. Client.excute (client.go)
+// returns a plain fmt.Errorf-wrapped ErrUnexpectedStatus on a non-2xx
+// response, not an *APIError — so APIError/parseAPIError/IsNotFound/
+// IsConflict/IsUnauthorized/IsForbidden below never actually trigger
+// today. v2 has two distinct error body shapes (flat {message} for
+// User/KYC/Wallet/Organization endpoints, {success:false,
+// error:{code,message,details}} for Payment endpoints) and this struct
+// doesn't yet parse either correctly (it expects a v1-style flat
+// {status,error,message} body). Left in place pending a decision on
+// whether/how to restore typed error handling.
+
 // APIError represents an error returned by the Gaian API.
 type APIError struct {
 	StatusCode int

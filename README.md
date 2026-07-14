@@ -1,6 +1,6 @@
 # gaian-go
 
-Go client for the [Gaian Network](https://gaian.network) API — payment processing across Vietnam, Philippines, and Brazil via QR code and stablecoin settlement.
+Go client for the [Gaian Network](https://gaian.network) **v2 API** — a single signed gateway for user onboarding, KYC, wallets, and crypto-to-fiat payments across Vietnam, Thailand, and other supported markets.
 
 ## Installation
 
@@ -8,42 +8,58 @@ Go client for the [Gaian Network](https://gaian.network) API — payment process
 go get github.com/gaiannetwork/gaian-go
 ```
 
-Requires Go 1.21+. No external dependencies.
-
 ## Quick start
 
 ```go
 import gaian "github.com/gaiannetwork/gaian-go"
 
-c := gaian.New("your-api-key", gaian.Sandbox)
+client, err := gaian.NewClient("https://sandbox.gaian.network", apiKey, secretKey)
+if err != nil {
+    log.Fatal(err)
+}
+
+resp, err := client.CreateUser(ctx, &gaian.CreateUserRequest{})
+if err != nil {
+    log.Fatal(err)
+}
+userID := resp.Data.UserID
 ```
 
-Get your API key from the [Client Admin Portal](https://client-admin.gaian-dev.network/). Keys are shown only once at creation — store them securely.
+Get your API key **and secret** from the [Client Admin Portal](https://client-admin.gaian.network/). Both are shown only once at creation — store them securely, server-side only.
+
+Every method hangs directly off `*Client` — there are no per-resource sub-clients (`client.CreateUser`, `client.Quote`, `client.PlaceOrder`, ...), not `client.User.Register(...)`.
 
 ---
 
 ## Environments
 
-| Constant | User API | Payment API |
-|----------|----------|-------------|
-| `gaian.Sandbox` | `dev-user.gaian-dev.network` | `dev-payments.gaian-dev.network` |
-| `gaian.Production` | `user.gaian-dev.network` | `payments.gaian-dev.network` |
+| Environment | Base URL |
+|---|---|
+| Sandbox | `https://sandbox.gaian.network` |
+| Production | `https://api.gaian.network` |
 
 ---
 
 ## Authentication
 
-All requests require the `x-api-key` header. The client sets this automatically from the key passed to `New`.
+Every request is HMAC-signed — there's no static API-key header. Each key has a **public key** (`apiKey`) and a **secret** (`secretKey`); `NewClient` takes both and signs every outgoing request automatically:
 
 ```go
-// Sandbox
-c := gaian.New(os.Getenv("GAIAN_API_KEY"), gaian.Sandbox)
-
-// Production
-c := gaian.New(os.Getenv("GAIAN_API_KEY"), gaian.Production)
+message   = apiKey + method + path + query + canonicalBody + timestamp
+signature = base64url( HMAC_SHA256(secretKey, message) )
 ```
 
-> **Never** hardcode API keys or expose them in client-side code.
+where `canonicalBody` is the JSON body with top-level keys sorted alphabetically and compact-serialized (empty string for GET/no body). This is implemented in the `signer` subpackage — you never need to call it directly, `NewClient`/`*Client` handle signing for you.
+
+```go
+client, err := gaian.NewClient(
+    "https://sandbox.gaian.network",
+    os.Getenv("GAIAN_API_KEY"),
+    os.Getenv("GAIAN_API_SECRET"),
+)
+```
+
+> **Never** hardcode the API key/secret or expose them in client-side code. Signatures must be generated on your backend.
 
 ---
 
@@ -52,292 +68,363 @@ c := gaian.New(os.Getenv("GAIAN_API_KEY"), gaian.Production)
 ### Standard flow (on-chain signing required)
 
 ```
-Register → KYC → Check Policy → Parse QR → Calculate Exchange
-→ Place Order → Sign & Broadcast Transaction → Verify Order → Poll Status
+Quote (or ParseQR first) → PlaceOrder → sign & broadcast the returned transaction
+→ VerifyOrder → GetOrderStatus (poll until terminal)
 ```
 
-### Prefunded flow (no on-chain signing)
+### Prefunded flow (no on-chain signing, settles from tenant balance)
 
 ```
-Place Prefunded Order → Poll Status
+QuotePrefund → PlacePrefundedOrder → GetOrderStatus (poll)
 ```
+
+### Direct bank-transfer flow (production only, no QR code)
+
+```
+ListBanks → VerifyAccount (recommended) → QuoteDirect (or QuoteDirectPrefund)
+→ PlaceOrder (or PlacePrefundedOrder) → VerifyOrder (on-chain variant only) → GetOrderStatus
+```
+
+A `QuoteDirect`/`Quote` quote must be consumed by `PlaceOrder`; a `QuoteDirectPrefund`/`QuotePrefund` quote must be consumed by `PlacePrefundedOrder` — cross-use is rejected by the API. Quotes are single-use with a short TTL (~120s).
 
 ---
 
 ## Usage
 
-### User
+### Users
 
-#### Register a user
-
-The endpoint is idempotent — returns the existing user if the wallet is already registered.
+#### Create a user
 
 ```go
-user, err := c.User.Register(ctx, "0xWalletAddress")
-if err != nil && !gaian.IsConflict(err) {
-    log.Fatal(err)
-}
-fmt.Println(user.ID, user.KYCStatus)
+resp, err := client.CreateUser(ctx, &gaian.CreateUserRequest{})
+userID := resp.Data.UserID
 ```
 
-#### Get user by ID or wallet
+No wallet or KYC data is attached at creation time — link a wallet and submit KYC afterward using the returned `userID`.
+
+#### Get a user by ID or wallet
 
 ```go
-user, err := c.User.GetByID(ctx, 42)
+resp, err := client.GetUserByID(ctx, &gaian.GetUserByIDRequest{UserID: userID})
 
-user, err := c.User.GetByWallet(ctx, "0xWalletAddress")
+resp, err := client.GetUserByWallet(ctx, &gaian.GetUserByWalletRequest{WalletAddress: "0xWalletAddress"})
 ```
 
-#### Check market availability
+#### Check market access
 
 ```go
-// Returns map[countryCode]MarketInfo, e.g. map["VN"]
-markets, err := c.User.GetMarkets(ctx, "0xWalletAddress")
-if markets["VN"].Status != gaian.MarketApproved {
-    fmt.Println("Vietnam market not available:", markets["VN"].RejectReason)
+resp, err := client.GetMarkets(ctx, &gaian.GetMarketsRequest{UserID: userID})
+if resp.Data.Markets["VN"].Status != gaian.MarketApproved {
+    fmt.Println("Vietnam market not available")
 }
 ```
 
-#### List orders
+| `MarketStatus` | Description |
+|---|---|
+| `gaian.MarketApproved` | Approved for payments in this market |
+| `gaian.MarketPending` | KYC/verification in progress |
+| `gaian.MarketNotStarted` | Nothing submitted yet for this market |
+| `gaian.MarketRejected` | Rejected — check `RejectReason` (populated for PH/BR only) |
+
+#### List / get orders
 
 ```go
-list, err := c.User.ListOrdersByWallet(ctx, "0xWalletAddress", gaian.OrderListOptions{
-    Page:   1,
-    Limit:  20,
-    Status: gaian.OrderCompleted, // optional filter
+resp, err := client.ListUserOrders(ctx, &gaian.ListUserOrdersRequest{
+    UserID:   userID,
+    Page:     1,
+    PageSize: 20,
+    Status:   "completed", // optional filter
 })
-
-for _, order := range list.Items {
-    fmt.Println(order.OrderID, order.Status, order.FiatAmount, order.FiatCurrency)
+for _, o := range resp.Items {
+    fmt.Println(o.OrderID, o.Status, o.FiatAmount, o.FiatCurrency)
 }
-fmt.Println("total:", list.Pagination.Total)
+fmt.Println("total:", resp.Pagination.TotalCount)
+
+order, err := client.GetUserOrder(ctx, &gaian.GetUserOrderRequest{UserID: userID, OrderID: orderID})
+```
+
+---
+
+### Wallets
+
+```go
+wallet, err := client.CreateWallet(ctx, &gaian.CreateWalletRequest{
+    UserID:  userID,
+    Address: "0xWalletAddress",
+    Chain:   "base",
+})
+// the first wallet added for a user becomes primary automatically
+
+resp, err := client.ListWallets(ctx, &gaian.ListWalletsRequest{UserID: userID})
+for _, w := range *resp.Data {
+    fmt.Println(w.Address, w.Chain, w.IsPrimary)
+}
 ```
 
 ---
 
 ### KYC
 
-#### Generate a Sumsub KYC link
+#### Hosted KYC link
 
 The returned URL is time-limited. Generate it on demand — do not cache.
 
 ```go
-url, err := c.User.GenerateKYCLink(ctx, "0xWalletAddress")
-// Redirect user to url
+resp, err := client.GenerateKYCLink(ctx, &gaian.GenerateKYCLinkRequest{
+    UserID:      userID,
+    CallbackURL: "https://myapp.com/kyc/callback", // optional
+})
+// Redirect the user to resp.Data.URL
 ```
 
 #### Submit KYC information directly
 
 ```go
-status, err := c.User.SubmitKYC(ctx, gaian.SubmitKYCRequest{
-    UserWalletAddress: "0xWalletAddress",
-    UserEmail:         "user@example.com",
-    FirstName:         "Nguyen",
-    LastName:          "Van A",
-    DateOfBirth:       "1990-01-15",
-    Gender:            "male",
-    Nationality:       "VN",
-    Type:              "national_id",
-    NationalID:        "012345678901",
-    IssueDate:         "2015-01-01",
-    ExpiryDate:        "2025-01-01",
-    AddressLine1:      "123 Le Loi",
-    City:              "Ho Chi Minh City",
-    State:             "HCM",
-    ZipCode:           "70000",
-    FrontIDImage:      "<base64>",
-    BackIDImage:       "<base64>",
-    HoldIDImage:       "<base64>",
-    PhoneNumber:       "912345678",
-    PhoneCountryCode:  "+84",
+resp, err := client.SubmitKYC(ctx, &gaian.SubmitKYCRequest{
+    UserID:             userID,
+    FirstName:          "Nguyen",
+    LastName:           "Van A",
+    Email:              "user@example.com",
+    Gender:             "male",
+    DateOfBirth:        "1990-01-15",
+    Nationality:        "VN",
+    NationalID:         "012345678901",
+    Type:               "national_id",
+    ExpiryDate:         "2025-01-01",
+    AddressLine1:       "123 Le Loi",
+    City:               "Ho Chi Minh City",
+    CountryOfResidence: "VN",
+    Occupation:         "OCC9",
+    PhoneCountryCode:   "+84",
+    PhoneNumber:        "912345678",
+    FrontIDImage:       "<base64>",
+    BackIDImage:        "<base64>",
+    HoldIDImage:        "<base64>",
+})
+fmt.Println(resp.Data.KYCStatus)
+```
+
+#### Update KYC information
+
+All fields are optional pointers — only non-nil fields are sent/updated.
+
+```go
+newEmail := "updated@example.com"
+resp, err := client.UpdateKYC(ctx, &gaian.UpdateKYCRequest{
+    UserID: userID,
+    Email:  &newEmail,
 })
 ```
 
 ---
 
-### Policy
-
-Check whether a wallet can make a payment in a given market and get transaction limits.
+### Organization
 
 ```go
-policy, err := c.Policy.CheckPolicy(ctx, "0xWalletAddress", "VN")
-if !policy.IsAllowed {
-    log.Fatalf("payment blocked: %v", policy.Reason)
-}
-
-fmt.Printf("tier: %s  per-tx: $%.0f  per-day: $%.0f\n",
-    policy.Tier, policy.Limits.PerTransaction, policy.Limits.PerDay)
+resp, err := client.GetOrganizationBalance(ctx, &gaian.GetOrganizationBalanceRequest{})
+fmt.Printf("%s %s available\n", resp.Data.AvailableBalance, resp.Data.Currency)
 ```
 
-| Tier | Description |
-|------|-------------|
-| `gaian.TierKYC` | KYC-verified, higher limits |
-| `gaian.TierNonKYC` | Unverified, lower limits |
+Restricted to tenants on the prefund billing model.
 
 ---
 
-### Payment
+### Payments
 
 #### Parse a QR code
 
-Supports EMVCO QR codes from Vietnam, Philippines, Thailand, and Brazil.
-
 ```go
-info, err := c.Payment.ParseQR(ctx, qrString)
-// Optional country hint:
-info, err := c.Payment.ParseQR(ctx, qrString, gaian.ParseQROptions{Country: "VN"})
+resp, err := client.ParseQR(ctx, &gaian.ParseQRRequest{QRString: qrString})
+// Country is an optional ISO-3166-1 alpha-2 hint:
+resp, err := client.ParseQR(ctx, &gaian.ParseQRRequest{QRString: qrString, Country: "VN"})
 
-// Amount, Currency, BeneficiaryName are nullable — check before use
-if info.Amount != nil && info.Currency != nil {
-    fmt.Printf("%.0f %s\n", *info.Amount, *info.Currency)
-}
-if info.BeneficiaryName != nil {
-    fmt.Println(*info.BeneficiaryName)
-}
+fmt.Println(resp.Data.BankBin, resp.Data.AccountNumber)
 ```
 
-#### Calculate exchange rate
+#### Create a quote
 
 ```go
-exchange, err := c.Payment.CalculateExchange(ctx, gaian.CalculateExchangeRequest{
-    Amount:  500000, // fiat amount
-    Country: "VN",
-    Chain:   gaian.Solana,
-    Token:   gaian.USDC,
+resp, err := client.Quote(ctx, &gaian.QuoteRequest{
+    QRString:           qrString,
+    Amount:             500000, // fiat amount
+    ChainID:            gaian.ChainSolana,
+    SettlementCurrency: "USDC",
+    UserID:             userID,
 })
-
-fmt.Printf("need %s %s (rate: %s, fee: %s)\n",
-    exchange.CryptoAmount, exchange.CryptoCurrency,
-    exchange.ExchangeRate, exchange.FeeAmount)
+quoteID := resp.Data.QuoteID
 ```
 
-#### Place a standard order
+| `ChainID` | Chain |
+|---|---|
+| `gaian.ChainEthereum` | Ethereum (1) |
+| `gaian.ChainOptimism` | Optimism (10) |
+| `gaian.ChainBSC` | BSC (56) |
+| `gaian.ChainPolygon` | Polygon (137) |
+| `gaian.ChainBase` | Base (8453) |
+| `gaian.ChainArbitrum` | Arbitrum (42161) |
+| `gaian.ChainSolana` | Solana (101) |
+
+Prefunded quote (no on-chain step, no `ChainID`):
 
 ```go
-order, err := c.Payment.PlaceOrder(ctx, gaian.PlaceOrderRequest{
-    QRString:       qrString,
-    Amount:         500000,
-    CryptoCurrency: gaian.USDC,
-    FromAddress:    "0xWalletAddress",
-    FiatCurrency:   gaian.VND,
-    Chain:          gaian.Solana,
+resp, err := client.QuotePrefund(ctx, &gaian.QuotePrefundRequest{
+    QRString:           qrString,
+    Amount:             500000,
+    SettlementCurrency: "USDC",
+    UserID:             userID,
+})
+```
+
+Direct bank-transfer quote (no QR code, production only — see `ListBanks`/`VerifyAccount` below):
+
+```go
+resp, err := client.QuoteDirect(ctx, &gaian.QuoteDirectRequest{
+    AccountNumber:      "0123456789",
+    Code:               bankCode, // from ListBanks
+    Amount:             500000,
+    Country:            "VN",
+    ChainID:            gaian.ChainSolana,
+    SettlementCurrency: "USDC",
+    UserID:             userID, // exactly one of UserID/WalletAddress/Email
 })
 
-// order.CryptoTransferInfo contains destination wallet and amount.
-// Build and sign the Solana transaction (legacy format, NOT VersionedTransaction),
-// then call VerifyOrder with the transaction signature.
+// or, prefunded:
+resp, err := client.QuoteDirectPrefund(ctx, &gaian.QuoteDirectPrefundRequest{ /* same, minus ChainID */ })
+```
+
+#### Place an order
+
+```go
+resp, err := client.PlaceOrder(ctx, &gaian.PlaceOrderRequest{QuoteID: quoteID})
+
+// resp.Data.EncodedTransaction is what you sign and broadcast on-chain.
+txHash := broadcastTransaction(resp.Data.EncodedTransaction)
+```
+
+Prefunded order (no on-chain step — go straight to polling `GetOrderStatus`):
+
+```go
+resp, err := client.PlacePrefundedOrder(ctx, &gaian.PlacePrefundedOrderRequest{QuoteID: quoteID})
 ```
 
 #### Verify the on-chain transaction
 
 ```go
-result, err := c.Payment.VerifyOrder(ctx, order.OrderID, txSignature)
-fmt.Println(result.Status, result.BankTransferStatus)
+resp, err := client.VerifyOrder(ctx, &gaian.VerifyOrderRequest{
+    OrderID:         orderID,
+    TransactionHash: txHash,
+})
 ```
 
-#### Place a prefunded order
-
-No on-chain signing required. Uses the tenant's prefunded balance.
+> **The API returns HTTP 200 even when verification did not succeed.** A `nil` error does **not** mean the payment is confirmed — always branch on `resp.Data.Status`:
 
 ```go
-order, err := c.Payment.PlacePrefundedOrder(ctx, gaian.PlacePrefundedOrderRequest{
-    QRString:       qrString,
-    Amount:         500000,
-    CryptoCurrency: gaian.USDC,
-    FromAddress:    "0xWalletAddress",
-    FiatCurrency:   gaian.VND,
-})
+switch resp.Data.Status {
+case gaian.VerifyVerified:
+    // confirmed — poll GetOrderStatus for settlement
+case gaian.VerifyPending:
+    // transaction hasn't propagated on-chain yet — resubmit the same TransactionHash shortly
+case gaian.VerifyFailed:
+    log.Printf("verification failed: %s", resp.Data.Message)
+}
 ```
 
 #### Poll order status
 
-Poll until the order reaches a terminal state (`completed` or `failed`).
-
 ```go
 for {
-    status, err := c.Payment.GetOrderStatus(ctx, order.OrderID)
+    resp, err := client.GetOrderStatus(ctx, &gaian.GetOrderStatusRequest{OrderID: orderID})
     if err != nil {
         log.Fatal(err)
     }
-
-    if status.Status == gaian.OrderCompleted || status.Status == gaian.OrderFailed {
-        fmt.Println("final status:", status.Status)
+    if resp.Data.Status.IsTerminal() {
+        fmt.Println("final status:", resp.Data.StatusLabel)
         break
     }
     time.Sleep(3 * time.Second)
 }
 ```
 
-| Status | Description |
-|--------|-------------|
-| `OrderAwaitingCryptoTransfer` | Waiting for on-chain transaction |
-| `OrderVerified` | Transaction confirmed, bank transfer queued |
-| `OrderProcessing` | Bank transfer in progress |
-| `OrderCompleted` | Payment successful |
-| `OrderFailed` | Payment failed |
+| `OrderStatus` | Label | Terminal? |
+|---|---|---|
+| `gaian.OrderPending` (0) | `pending` | no |
+| `gaian.OrderAwaitingDeposit` (1) | `awaiting_deposit` | no |
+| `gaian.OrderPaymentReceived` (2) | `payment_received` | no |
+| `gaian.OrderQueued` (3) | `queued` | no |
+| `gaian.OrderProcessing` (4) | `processing` | no |
+| `gaian.OrderCompleted` (10) | `completed` | **yes** |
+| `gaian.OrderFailed` (20) | `failed` | **yes** |
+| `gaian.OrderCancelled` (21) | `cancelled` | **yes** |
+| `gaian.OrderExpired` (22) | `expired` | **yes** |
+| `gaian.OrderUnknown` (99) | `unknown` | no |
+
+`VerifyStatus` (returned by `VerifyOrder`) is a **separate type** from `OrderStatus` — their integer values overlap (both have a `1`) but mean different things. Don't compare across the two.
 
 ---
 
-### Tenant
+### Banks (direct bank transfer)
+
+Production only — not available in sandbox.
 
 ```go
-// Prefunded balance
-balance, err := c.Tenant.GetBalance(ctx, gaian.USDC)
-fmt.Printf("%.4f %s available\n", balance.AvailableBalance, balance.Currency)
+resp, err := client.ListBanks(ctx, &gaian.ListBanksRequest{Country: "VN"})
+for _, b := range resp.Data.Banks {
+    fmt.Println(b.Code, b.Name) // b.Code is what QuoteDirect/VerifyAccount expect
+}
 
-// Spend cap usage
-spend, err := c.Tenant.GetTotalSpent(ctx)
-fmt.Printf("spent $%.2f of $%.2f limit\n", spend.TotalSpent, spend.Limit)
+verify, err := client.VerifyAccount(ctx, &gaian.VerifyAccountRequest{
+    AccountNumber: "0123456789",
+    Code:          bankCode,
+    Country:       "VN",
+})
 ```
+
+> A failed verification (bad account number) is **not** an error — it returns HTTP 200 with `Valid: false` and `AccountName: nil`. Check `resp.Data.Valid`, not just the returned error.
+
+---
+
+## Response envelopes
+
+Every method returns one of two generic wrappers (`response.go`):
+
+- **`UserResposne[T]`** — `{data, requestId}` — used by User/KYC/Wallet/Organization endpoints.
+- **`PaymentResponse[T]`** — `{success, requestId, data}` — used by Payment endpoints (`ParseQR`, `Quote*`, `PlaceOrder*`, `VerifyOrder`, `GetOrderStatus`, `ListBanks`, `VerifyAccount`).
+
+`ListUserOrders` is the one exception — its response has `data`/`pagination`/`requestId` as siblings at the top level, so it returns `*ListUserOrdersResponse` directly instead of a wrapped envelope.
+
+Check each method's doc comment (`go doc gaian.<Method>`) if you're unsure which shape applies.
 
 ---
 
 ## Error handling
 
-All methods return a standard `error`. API errors are typed as `*gaian.APIError` and expose `StatusCode`.
+All methods return a standard `error`. Non-2xx responses are currently wrapped in `ErrUnexpectedStatus` (check with `errors.Is`):
 
 ```go
-user, err := c.User.GetByID(ctx, 999)
+resp, err := client.GetUserByID(ctx, &gaian.GetUserByIDRequest{UserID: "does-not-exist"})
 if err != nil {
-    switch {
-    case gaian.IsNotFound(err):
-        // 404
-    case gaian.IsConflict(err):
-        // 409 — resource already exists
-    case gaian.IsUnauthorized(err):
-        // 401 — invalid or missing API key
-    case gaian.IsForbidden(err):
-        // 403 — insufficient permissions
-    default:
-        log.Fatal(err)
+    if errors.Is(err, gaian.ErrUnexpectedStatus) {
+        // inspect err.Error() for the status code and raw response body
     }
+    log.Fatal(err)
 }
 ```
+
+`gaian.APIError` and its `IsNotFound`/`IsConflict`/`IsUnauthorized`/`IsForbidden` helpers exist in `errors.go` but aren't wired into the client yet — see the note at the top of that file.
 
 ---
 
 ## Configuration
 
 ```go
-c := gaian.New(apiKey, gaian.Sandbox,
-    gaian.WithTimeout(15*time.Second),
-    gaian.WithHTTPClient(myHTTPClient), // any type implementing HTTPClient interface
-    gaian.WithLogger(myLogger),         // optional: implement gaian.Logger
-    gaian.WithDebug(true),              // log request/response to logger
+client, err := gaian.NewClient(baseURL, apiKey, secretKey,
+    gaian.WithHTTPClient(myHTTPClient), // any type implementing gaian.HTTPClient
+    gaian.WithLogger(myLogger),         // optional: implement gaian.Logger (Info/Error/Debug)
+    gaian.WithDebug(true),              // log request/response via the logger
 )
 ```
 
----
-
-## Supported currencies and chains
-
-| Type | Values |
-|------|--------|
-| Fiat | `VND` (Vietnam), `PHP` (Philippines), `BRL` (Brazil) |
-| Crypto | `USDC`, `USDT` |
-| Chains | `Solana`, `Ethereum`, `Polygon`, `Arbitrum`, `Base` |
-
-> Currently only Solana is fully supported for exchange calculation and prefunded orders.
+`WithHTTPClient` is also how you inject timeouts — pass an `*http.Client` with `Timeout` set, or any custom `HTTPClient` implementation.
 
 ---
 
