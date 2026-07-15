@@ -9,34 +9,33 @@ import (
 )
 
 // SubmitKYCRequest carries all fields for direct KYC submission (no
-// hosted flow — see GenerateKYCLink for that alternative). Gender and
-// Type are plain strings here because the API doesn't constrain them on
-// this endpoint; UpdateKYCRequest uses constrained enum types for the
-// same fields since PATCH does validate them.
+// hosted flow — see GenerateKYCLink for that alternative). Gender, Type,
+// Occupation, and Nationality are constrained to the enum types defined
+// in kyc_enums.go, matching the values the API accepts.
 type SubmitKYCRequest struct {
-	UserID             string `param:"userId" json:"-"`
-	FirstName          string `json:"firstName"`
-	LastName           string `json:"lastName"`
-	Email              string `json:"email"`
-	Gender             string `json:"gender"`
-	DateOfBirth        string `json:"dateOfBirth"`
-	Nationality        string `json:"nationality"`
-	NationalID         string `json:"nationalId"`
-	Type               string `json:"type"`
-	IssueDate          string `json:"issueDate,omitempty"`
-	ExpiryDate         string `json:"expiryDate"`
-	AddressLine1       string `json:"addressLine1"`
-	AddressLine2       string `json:"addressLine2,omitempty"`
-	City               string `json:"city"`
-	State              string `json:"state,omitempty"`
-	ZipCode            string `json:"zipCode,omitempty"`
-	CountryOfResidence string `json:"countryOfResidence"`
-	Occupation         string `json:"occupation"`
-	PhoneCountryCode   string `json:"phoneCountryCode"`
-	PhoneNumber        string `json:"phoneNumber"`
-	FrontIDImage       string `json:"frontIdImage,omitempty"`
-	BackIDImage        string `json:"backIdImage,omitempty"`
-	HoldIDImage        string `json:"holdIdImage,omitempty"`
+	UserID             string          `param:"userId" json:"-"`
+	FirstName          string          `json:"firstName"`
+	LastName           string          `json:"lastName"`
+	Email              string          `json:"email"`
+	Gender             Gender          `json:"gender"`
+	DateOfBirth        string          `json:"dateOfBirth"`
+	Nationality        NationalityCode `json:"nationality"`
+	NationalID         string          `json:"nationalId"`
+	Type               DocumentType    `json:"type"`
+	IssueDate          string          `json:"issueDate,omitempty"`
+	ExpiryDate         string          `json:"expiryDate"`
+	AddressLine1       string          `json:"addressLine1"`
+	AddressLine2       string          `json:"addressLine2,omitempty"`
+	City               string          `json:"city"`
+	State              string          `json:"state,omitempty"`
+	ZipCode            string          `json:"zipCode,omitempty"`
+	CountryOfResidence string          `json:"countryOfResidence"`
+	Occupation         OccupationCode  `json:"occupation"`
+	PhoneCountryCode   string          `json:"phoneCountryCode"`
+	PhoneNumber        string          `json:"phoneNumber"`
+	FrontIDImage       string          `json:"frontIdImage,omitempty"`
+	BackIDImage        string          `json:"backIdImage,omitempty"`
+	HoldIDImage        string          `json:"holdIdImage,omitempty"`
 }
 
 // SubmitKYCResponse is returned immediately after submission — KYCStatus
@@ -61,14 +60,14 @@ type SubmitKYCResponse struct {
 //		LastName:           "Van A",
 //		Email:              "user@example.com",
 //		DateOfBirth:        "1990-01-15",
-//		Nationality:        "VN",
+//		Nationality:        gaian.NationalityCode("VN"),
 //		NationalID:         "012345678901",
-//		Type:               "national_id",
+//		Type:               gaian.DocumentTypeIDCard,
 //		ExpiryDate:         "2025-01-01",
 //		AddressLine1:       "123 Le Loi",
 //		City:               "Ho Chi Minh City",
 //		CountryOfResidence: "VN",
-//		Occupation:         "OCC9",
+//		Occupation:         gaian.OccupationProfessional,
 //		PhoneCountryCode:   "+84",
 //		PhoneNumber:        "912345678",
 //	})
