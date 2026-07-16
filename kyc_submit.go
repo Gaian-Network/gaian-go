@@ -33,9 +33,9 @@ type SubmitKYCRequest struct {
 	Occupation         OccupationCode  `json:"occupation"`
 	PhoneCountryCode   string          `json:"phoneCountryCode"`
 	PhoneNumber        string          `json:"phoneNumber"`
-	FrontIDImage       string          `json:"frontIdImage,omitempty"`
-	BackIDImage        string          `json:"backIdImage,omitempty"`
-	HoldIDImage        string          `json:"holdIdImage,omitempty"`
+	FrontIDImage       *string         `json:"frontIdImage,omitempty"`
+	BackIDImage        *string         `json:"backIdImage,omitempty"`
+	HoldIDImage        *string         `json:"holdIdImage,omitempty"`
 }
 
 // SubmitKYCResponse is returned immediately after submission — KYCStatus

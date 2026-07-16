@@ -180,6 +180,8 @@ resp, err := client.GenerateKYCLink(ctx, &gaian.GenerateKYCLinkRequest{
 #### Submit KYC information directly
 
 ```go
+frontImage, backImage, holdImage := "<base64>", "<base64>", "<base64>"
+
 resp, err := client.SubmitKYC(ctx, &gaian.SubmitKYCRequest{
     UserID:             userID,
     FirstName:          "Nguyen",
@@ -197,12 +199,14 @@ resp, err := client.SubmitKYC(ctx, &gaian.SubmitKYCRequest{
     Occupation:         "OCC9",
     PhoneCountryCode:   "+84",
     PhoneNumber:        "912345678",
-    FrontIDImage:       "<base64>",
-    BackIDImage:        "<base64>",
-    HoldIDImage:        "<base64>",
+    FrontIDImage:       &frontImage,
+    BackIDImage:        &backImage,
+    HoldIDImage:        &holdImage,
 })
 fmt.Println(resp.Data.KYCStatus)
 ```
+
+`FrontIDImage`/`BackIDImage`/`HoldIDImage` are `*string` — leave them `nil` to omit entirely (some flows don't require ID images at submission time).
 
 #### Update KYC information
 

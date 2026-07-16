@@ -91,6 +91,43 @@ func TestSubmitKYCRequest_WireFormat(t *testing.T) {
 	if _, ok := body["addressLine2"]; ok {
 		t.Error("empty optional addressLine2 leaked into the request body")
 	}
+	for _, field := range []string{"frontIdImage", "backIdImage", "holdIdImage"} {
+		if _, ok := body[field]; ok {
+			t.Errorf("nil optional %s leaked into the request body", field)
+		}
+	}
+}
+
+// TestSubmitKYCRequest_ImagesIncludedWhenSet guards the omitempty
+// behavior the other way: a non-nil image pointer must be sent, even
+// though the three ID image fields are optional.
+func TestSubmitKYCRequest_ImagesIncludedWhenSet(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockHTTPClient{
+		response: mockResponse(http.StatusOK, //nolint:bodyclose // response body closed by client
+			`{"data":{"userId":"usr_1","email":"user@example.com","kycStatus":"PROCESSING"},"requestId":"req_1"}`),
+	}
+	client := newMockClient(t, mock)
+
+	front := "front-base64"
+	req := validSubmitKYCRequest()
+	req.FrontIDImage = &front
+
+	if _, err := client.SubmitKYC(context.Background(), req); err != nil {
+		t.Fatalf("SubmitKYC: %v", err)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(mock.lastBody(), &body); err != nil {
+		t.Fatalf("unmarshal request body: %v", err)
+	}
+	if body["frontIdImage"] != "front-base64" {
+		t.Errorf(`body["frontIdImage"] = %v, want "front-base64"`, body["frontIdImage"])
+	}
+	if _, ok := body["backIdImage"]; ok {
+		t.Error("nil optional backIdImage leaked into the request body")
+	}
 }
 
 func TestSubmitKYC_HTTPErrorStatuses(t *testing.T) {
