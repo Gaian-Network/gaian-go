@@ -2,6 +2,42 @@
 
 Go client for the [Gaian Network](https://gaian.network) **v2 API** — a single signed gateway for user onboarding, KYC, wallets, and crypto-to-fiat payments across Vietnam, Thailand, and other supported markets.
 
+## Table of contents
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Environments](#environments)
+- [Authentication](#authentication)
+- [Payment flows](#payment-flows)
+  - [Standard flow (on-chain signing required)](#standard-flow-on-chain-signing-required)
+  - [Prefunded flow (no on-chain signing, settles from tenant balance)](#prefunded-flow-no-on-chain-signing-settles-from-tenant-balance)
+  - [Direct bank-transfer flow (production only, no QR code)](#direct-bank-transfer-flow-production-only-no-qr-code)
+- [Usage](#usage)
+  - [Users](#users)
+    - [Create a user](#create-a-user)
+    - [Get a user by ID or wallet](#get-a-user-by-id-or-wallet)
+    - [Check market access](#check-market-access)
+    - [List / get orders](#list--get-orders)
+  - [Wallets](#wallets)
+  - [KYC](#kyc)
+    - [Hosted KYC link](#hosted-kyc-link)
+    - [Submit KYC information directly](#submit-kyc-information-directly)
+    - [Update KYC information](#update-kyc-information)
+  - [Organization](#organization)
+  - [Payments](#payments)
+    - [Parse a QR code](#parse-a-qr-code)
+    - [Create a quote](#create-a-quote)
+    - [Place an order](#place-an-order)
+    - [Verify the on-chain transaction](#verify-the-on-chain-transaction)
+    - [Poll order status](#poll-order-status)
+  - [Banks (direct bank transfer)](#banks-direct-bank-transfer)
+- [Response envelopes](#response-envelopes)
+- [Error handling](#error-handling)
+- [Configuration](#configuration)
+- [License](#license)
+
+---
+
 ## Installation
 
 ```bash
