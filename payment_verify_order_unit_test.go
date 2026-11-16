@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	gaian "github.com/gaiannetwork/gaian-go"
+	gaian "github.com/Gaian-Network/gaian-go/v2"
 )
 
 func TestVerifyOrder_Success(t *testing.T) {

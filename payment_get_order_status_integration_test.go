@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	gaian "github.com/gaiannetwork/gaian-go"
+	gaian "github.com/Gaian-Network/gaian-go/v2"
 )
 
 // TestSandbox_GetOrderStatus hits the real sandbox environment. Requires

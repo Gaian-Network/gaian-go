@@ -36,7 +36,7 @@
 // # Response envelopes
 //
 // Every method returns one of two generic wrappers from response.go:
-// UserResposne[T] for User/KYC/Wallet/Organization endpoints, or
+// UserResponse[T] for User/KYC/Wallet/Organization endpoints, or
 // PaymentResponse[T] for Payment endpoints (quote/orders/verify/status/
 // parseQr) — the two backing services shape their responses (and errors)
 // differently. Check the doc comment on each method for which one it
@@ -53,8 +53,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 
-	"github.com/gaiannetwork/gaian-go/signer"
+	"github.com/Gaian-Network/gaian-go/v2/signer"
 )
 
 const UserArgent = "gaian-go-sdk"
@@ -184,6 +185,22 @@ func paramsToMap(params any) (map[string]any, error) {
 	return result, nil
 }
 
+func signedBody(req *request) any {
+	if req.Method == http.MethodGet {
+		return nil
+	}
+
+	return req.Params
+}
+
+func queryValue(value any) string {
+	if f, ok := value.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+
+	return fmt.Sprintf("%v", value)
+}
+
 func (c *Client) sign(req *request, headers http.Header, query string) error {
 	if req.Public {
 		return nil
@@ -193,7 +210,7 @@ func (c *Client) sign(req *request, headers http.Header, query string) error {
 		Method: req.Method,
 		Path:   req.Endpoint,
 		Query:  query,
-		Body:   req.Params,
+		Body:   signedBody(req),
 	})
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRequestSign, err)
@@ -216,7 +233,7 @@ func (c *Client) buildGETRequest(req *request, fullURL string, headers http.Head
 	if len(paramsMap) > 0 {
 		queryParams := url.Values{}
 		for key, value := range paramsMap {
-			queryParams.Add(key, fmt.Sprintf("%v", value))
+			queryParams.Add(key, queryValue(value))
 		}
 
 		query = queryParams.Encode()
@@ -227,7 +244,7 @@ func (c *Client) buildGETRequest(req *request, fullURL string, headers http.Head
 		return err
 	}
 
-	c.logDebug("http request", "url", fullURL)
+	c.logDebug("http request", "method", req.Method, "url", fullURL)
 
 	req.FullURL = fullURL
 	req.Header = headers
@@ -312,16 +329,10 @@ func (c *Client) excute(ctx context.Context, req *request) ([]byte, error) {
 		return nil, err
 	}
 
-	c.logDebug("http response", "status", resp.StatusCode)
-	c.logDebug("http response body", "body", string(responseBody))
+	c.logDebug("http response", "method", req.Method, "url", req.FullURL, "status", resp.StatusCode)
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, fmt.Errorf(
-			"%w: status=%d body=%s",
-			ErrUnexpectedStatus,
-			resp.StatusCode,
-			string(responseBody),
-		)
+		return nil, newAPIError(resp, responseBody)
 	}
 
 	return responseBody, nil

@@ -1,14 +1,19 @@
 package gaian
 
-// UserResposne is the response envelope used by the User/KYC/Wallet/
+// UserResponse is the response envelope used by the User/KYC/Wallet/
 // Organization endpoints ({data, requestId}, no success flag). Data is
 // nil if the API omitted it, which shouldn't happen on a non-error
 // response but is left as a pointer defensively — check it before
 // dereferencing.
-type UserResposne[T any] struct {
+type UserResponse[T any] struct {
 	RequestID string `json:"requestId"`
 	Data      *T     `json:"data"`
 }
+
+// UserResposne is the old, misspelled name of UserResponse.
+//
+// Deprecated: use UserResponse.
+type UserResposne[T any] = UserResponse[T]
 
 // PaymentResponse is the response envelope used by the Payment endpoints
 // (ParseQR, Quote*, PlaceOrder*, VerifyOrder, GetOrderStatus, ListBanks,

@@ -41,13 +41,13 @@ Go client for the [Gaian Network](https://gaian.network) **v2 API** — a single
 ## Installation
 
 ```bash
-go get github.com/gaiannetwork/gaian-go
+go get github.com/Gaian-Network/gaian-go/v2
 ```
 
 ## Quick start
 
 ```go
-import gaian "github.com/gaiannetwork/gaian-go"
+import gaian "github.com/Gaian-Network/gaian-go/v2"
 
 client, err := gaian.NewClient("https://sandbox.gaian.network", apiKey, secretKey)
 if err != nil {
@@ -427,7 +427,7 @@ verify, err := client.VerifyAccount(ctx, &gaian.VerifyAccountRequest{
 
 Every method returns one of two generic wrappers (`response.go`):
 
-- **`UserResposne[T]`** — `{data, requestId}` — used by User/KYC/Wallet/Organization endpoints.
+- **`UserResponse[T]`** — `{data, requestId}` — used by User/KYC/Wallet/Organization endpoints. `UserResposne[T]` is a deprecated alias of it.
 - **`PaymentResponse[T]`** — `{success, requestId, data}` — used by Payment endpoints (`ParseQR`, `Quote*`, `PlaceOrder*`, `VerifyOrder`, `GetOrderStatus`, `ListBanks`, `VerifyAccount`).
 
 `ListUserOrders` is the one exception — its response has `data`/`pagination`/`requestId` as siblings at the top level, so it returns `*ListUserOrdersResponse` directly instead of a wrapped envelope.
@@ -438,19 +438,23 @@ Check each method's doc comment (`go doc gaian.<Method>`) if you're unsure which
 
 ## Error handling
 
-All methods return a standard `error`. Non-2xx responses are currently wrapped in `ErrUnexpectedStatus` (check with `errors.Is`):
+All methods return a standard `error`. Every response with a status of 400 or above is a `*gaian.APIError` carrying `StatusCode`, `Code` (Payment endpoints only), `Message`, `RequestID` and the raw `Body`:
 
 ```go
 resp, err := client.GetUserByID(ctx, &gaian.GetUserByIDRequest{UserID: "does-not-exist"})
 if err != nil {
-    if errors.Is(err, gaian.ErrUnexpectedStatus) {
-        // inspect err.Error() for the status code and raw response body
+    var apiErr *gaian.APIError
+    if errors.As(err, &apiErr) {
+        log.Printf("status=%d code=%s request_id=%s", apiErr.StatusCode, apiErr.Code, apiErr.RequestID)
+    }
+    if gaian.IsNotFound(err) {
+        // the user does not exist
     }
     log.Fatal(err)
 }
 ```
 
-`gaian.APIError` and its `IsNotFound`/`IsConflict`/`IsUnauthorized`/`IsForbidden` helpers exist in `errors.go` but aren't wired into the client yet — see the note at the top of that file.
+`IsNotFound`, `IsConflict`, `IsUnauthorized` and `IsForbidden` also work on wrapped errors. `errors.Is(err, gaian.ErrUnexpectedStatus)` stays true for every `*APIError`.
 
 ---
 

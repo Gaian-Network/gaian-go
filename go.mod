@@ -1,4 +1,4 @@
-module github.com/gaiannetwork/gaian-go
+module github.com/Gaian-Network/gaian-go/v2
 
 go 1.25.4
 

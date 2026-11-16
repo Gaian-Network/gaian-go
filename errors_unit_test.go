@@ -2,16 +2,22 @@ package gaian
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 )
 
-// NOTE: parseAPIError/IsXxx below are not currently wired into excute
-// (see the NOTE at the top of errors.go) — these tests exercise the
-// parsing/predicate logic in isolation so it's known-correct for
-// whenever it does get wired up.
+func parseAPIError(status int, body []byte) *APIError {
+	return newAPIError(&http.Response{StatusCode: status, Header: http.Header{}}, body)
+}
 
 func TestParseAPIError(t *testing.T) {
 	e := parseAPIError(404, []byte(`{"status":"error","error":"not_found","message":"user not found"}`))
+	if e.Code != "not_found" || e.ErrorCode != "not_found" {
+		t.Errorf("Code = %q, ErrorCode = %q, want both %q", e.Code, e.ErrorCode, "not_found")
+	}
+	if e.Status != "error" {
+		t.Errorf("Status = %q, want %q", e.Status, "error")
+	}
 	if e.StatusCode != 404 {
 		t.Errorf("StatusCode = %d, want 404", e.StatusCode)
 	}
@@ -20,10 +26,34 @@ func TestParseAPIError(t *testing.T) {
 	}
 }
 
-func TestParseAPIError_UnparsableBodyFallsBackToRaw(t *testing.T) {
+func TestParseAPIError_UnparsableBodyIsKeptRaw(t *testing.T) {
 	e := parseAPIError(500, []byte("internal server error"))
-	if e.Message != "internal server error" {
-		t.Errorf("Message = %q, want the raw body", e.Message)
+	if e.Body != "internal server error" {
+		t.Errorf("Body = %q, want the raw body", e.Body)
+	}
+	if e.Message != "" {
+		t.Errorf("Message = %q, want empty for a non-JSON body", e.Message)
+	}
+	if got, want := e.Error(), "gaian: api error: status=500"; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+func TestAPIError_ErrorString(t *testing.T) {
+	resp := &http.Response{StatusCode: 400, Header: http.Header{}}
+	body := `{"success":false,"requestId":"req_2","error":{"code":"QUOTE_EXPIRED","message":"quote expired"}}`
+
+	got := newAPIError(resp, []byte(body)).Error()
+	want := "gaian: api error: status=400 code=QUOTE_EXPIRED message=quote expired request_id=req_2"
+	if got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
+	}
+}
+
+func TestAPIError_NumericStatusFieldDoesNotDropMessage(t *testing.T) {
+	e := parseAPIError(422, []byte(`{"status":422,"code":"VALIDATION","message":"bad field"}`))
+	if e.Message != "bad field" || e.Code != "VALIDATION" {
+		t.Errorf("Message = %q, Code = %q", e.Message, e.Code)
 	}
 }
 

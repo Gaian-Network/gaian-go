@@ -1,0 +1,234 @@
+{
+  "apiKey": "gk_test_0123456789abcdef",
+  "requests": [
+    {
+      "name": "get_no_query",
+      "method": "GET",
+      "path": "/api/v2/users/8f14e45f-ceea-467f-a8c1-000000000001",
+      "query": "",
+      "body": null,
+      "signedPath": "/api/v2/users/8f14e45f-ceea-467f-a8c1-000000000001",
+      "canonicalBody": "",
+      "signature": "YpR75GFgBST5Z_7GgnY-FWsKVth649P2fS48RxPcZk8="
+    },
+    {
+      "name": "get_with_query",
+      "method": "GET",
+      "path": "/api/v2/users/u1/orders",
+      "query": "page=2&page_size=50&status=completed",
+      "body": null,
+      "signedPath": "/api/v2/users/u1/orders",
+      "canonicalBody": "",
+      "signature": "R7iO4MN6xrubPuRRQtDMH0Foy4mAJOBJaapiaZ4gd_k="
+    },
+    {
+      "name": "get_query_needs_escape",
+      "method": "GET",
+      "path": "/api/v2/banks",
+      "query": "country=VN&q=ng%C3%A2n+h%C3%A0ng+%26+co",
+      "body": null,
+      "signedPath": "/api/v2/banks",
+      "canonicalBody": "",
+      "signature": "ylzrgLNmPKyF1z81wIBtW9IXIsIVrd-9jv-v9kxfliI="
+    },
+    {
+      "name": "post_no_body",
+      "method": "POST",
+      "path": "/api/v2/users",
+      "query": "",
+      "body": null,
+      "signedPath": "/api/v2/users",
+      "canonicalBody": "",
+      "signature": "PUZWPncRkMR9oE-x-BY_tBSCFRHs6o9N7wj22uwQJac="
+    },
+    {
+      "name": "post_empty_object",
+      "method": "POST",
+      "path": "/api/v2/users",
+      "query": "",
+      "body": {},
+      "signedPath": "/api/v2/users",
+      "canonicalBody": "",
+      "signature": "PUZWPncRkMR9oE-x-BY_tBSCFRHs6o9N7wj22uwQJac="
+    },
+    {
+      "name": "post_flat_unsorted",
+      "method": "POST",
+      "path": "/api/v2/users/u1/wallets",
+      "query": "",
+      "body": {
+        "isPrimary": true,
+        "chain": "solana",
+        "address": "So1anaAddr"
+      },
+      "signedPath": "/api/v2/users/u1/wallets",
+      "canonicalBody": "{\"address\":\"So1anaAddr\",\"chain\":\"solana\",\"isPrimary\":true}",
+      "signature": "l2A-WkOTyEgixEudVELpYMz4D-G_BI_Uo7EOVRb059o="
+    },
+    {
+      "name": "post_nested_unsorted",
+      "method": "POST",
+      "path": "/api/v2/quote",
+      "query": "",
+      "body": {
+        "userId": "u1",
+        "qrInfo": {
+          "zeta": 1,
+          "alpha": {
+            "y": [
+              {
+                "b": 1,
+                "a": 2
+              }
+            ],
+            "x": null
+          }
+        },
+        "amount": 150000
+      },
+      "signedPath": "/api/v2/quote",
+      "canonicalBody": "{\"amount\":150000,\"qrInfo\":{\"alpha\":{\"x\":null,\"y\":[{\"a\":2,\"b\":1}]},\"zeta\":1},\"userId\":\"u1\"}",
+      "signature": "tbw9fA31y8nL4KmkHHbhtJ_PLf3bWUUKowDx24-5Mlc="
+    },
+    {
+      "name": "post_html_chars",
+      "method": "POST",
+      "path": "/api/v2/users/u1/kyc",
+      "query": "",
+      "body": {
+        "firstName": "A & B <Co>",
+        "lastName": "it's \"quoted\""
+      },
+      "signedPath": "/api/v2/users/u1/kyc",
+      "canonicalBody": "{\"firstName\":\"A \\u0026 B \\u003cCo\\u003e\",\"lastName\":\"it's \\\"quoted\\\"\"}",
+      "signature": "SBrgDmdJ1lbSJOK5m2TlwFaYa7ufeBVXZv5y31kbTGw="
+    },
+    {
+      "name": "post_line_separators",
+      "method": "POST",
+      "path": "/api/v2/users/u1/kyc",
+      "query": "",
+      "body": {
+        "address": "line1 line2 end\ttab\nnl"
+      },
+      "signedPath": "/api/v2/users/u1/kyc",
+      "canonicalBody": "{\"address\":\"line1\\u2028line2\\u2029end\\ttab\\nnl\"}",
+      "signature": "10v6Sb1HskLVXNRv7ByEvmq7SsSpGKxrOhEsWFwFJTg="
+    },
+    {
+      "name": "post_vietnamese",
+      "method": "POST",
+      "path": "/api/v2/users/u1/kyc",
+      "query": "",
+      "body": {
+        "firstName": "Nguyễn",
+        "lastName": "Thị Hồng Ánh",
+        "city": "Đà Nẵng"
+      },
+      "signedPath": "/api/v2/users/u1/kyc",
+      "canonicalBody": "{\"city\":\"Đà Nẵng\",\"firstName\":\"Nguyễn\",\"lastName\":\"Thị Hồng Ánh\"}",
+      "signature": "NKDjPY6CAwGB5T1hYUvNConW_ZpieEPnojcKO075jJI="
+    },
+    {
+      "name": "post_numbers",
+      "method": "POST",
+      "path": "/api/v2/quote",
+      "query": "",
+      "body": {
+        "a": 100.0,
+        "b": 0.1,
+        "c": 1234.5678,
+        "d": 1e-7,
+        "e": 1e21,
+        "f": 123456789012,
+        "g": 0,
+        "h": -2.50,
+        "i": 1e20,
+        "j": 0.000001
+      },
+      "signedPath": "/api/v2/quote",
+      "canonicalBody": "{\"a\":100,\"b\":0.1,\"c\":1234.5678,\"d\":1e-7,\"e\":1e+21,\"f\":123456789012,\"g\":0,\"h\":-2.5,\"i\":100000000000000000000,\"j\":0.000001}",
+      "signature": "Mat1mBD_v17XIH5D-2ujGm6twiDb2DeOzbVGtMjJ8ac="
+    },
+    {
+      "name": "post_bool_null_array",
+      "method": "POST",
+      "path": "/api/v2/quote",
+      "query": "",
+      "body": {
+        "flag": false,
+        "none": null,
+        "list": [
+          3,
+          "x",
+          true,
+          {
+            "k": "v"
+          }
+        ],
+        "empty": [],
+        "emptyObj": {},
+        "emptyStr": ""
+      },
+      "signedPath": "/api/v2/quote",
+      "canonicalBody": "{\"empty\":[],\"emptyObj\":{},\"emptyStr\":\"\",\"flag\":false,\"list\":[3,\"x\",true,{\"k\":\"v\"}],\"none\":null}",
+      "signature": "cO244u1voKT9dhl3KEyYhaiZGYYfUo_BIFCIeo6g-pg="
+    },
+    {
+      "name": "patch_body",
+      "method": "PATCH",
+      "path": "/api/v2/users/u1/kyc",
+      "query": "",
+      "body": {
+        "type": "PASSPORT",
+        "idNumber": "C1234567"
+      },
+      "signedPath": "/api/v2/users/u1/kyc",
+      "canonicalBody": "{\"idNumber\":\"C1234567\",\"type\":\"PASSPORT\"}",
+      "signature": "rHrhs-KQ0q8hAywoYH4fuyE8FSRBoOpqEQTpYqnNrgM="
+    },
+    {
+      "name": "path_with_colon",
+      "method": "GET",
+      "path": "/api/v2/users/wallet/eip155:1:0xAbC",
+      "query": "",
+      "body": null,
+      "signedPath": "/api/v2/users/wallet/eip15510xAbC",
+      "canonicalBody": "",
+      "signature": "HWNIHr2onpQ7HNgDKlgG_8HLXG7xN3dygHNXeE_AMgo="
+    },
+    {
+      "name": "path_needs_escape",
+      "method": "GET",
+      "path": "/api/v2/users/wallet/addr with space/slash",
+      "query": "",
+      "body": null,
+      "signedPath": "/api/v2/users/wallet/addr with space/slash",
+      "canonicalBody": "",
+      "signature": "tHgKgUAGtG1WzKRk09PPLSZ1t1dJ3K15n02plB_hvL4="
+    }
+  ],
+  "secretKey": "gs_test_secret_fedcba9876543210",
+  "timestamp": "1731772800",
+  "webhookSecret": "whsec_test_abcdef0123456789",
+  "webhooks": [
+    {
+      "name": "simple",
+      "timestamp": "1731772800",
+      "body": "{\"event\":\"order.completed\",\"data\":{\"orderId\":\"o1\",\"amount\":150000}}",
+      "signature": "sha256=9b8096c8a9e07437b655adeaa429015433d0bb82ee337bfe0ed33fdf7bb1f8db"
+    },
+    {
+      "name": "whitespace_and_unicode",
+      "timestamp": "1731772800",
+      "body": "{ \"event\" : \"kyc.approved\",\n  \"name\": \"Nguyễn & Co\" }",
+      "signature": "sha256=e02b37490470c6c3160a35b263cc9aba9817b14c4016e6ade3122b347ae5db8a"
+    },
+    {
+      "name": "empty_body",
+      "timestamp": "1731772800",
+      "body": "",
+      "signature": "sha256=582a87a06c40af111ec866b649f797596e513691a9dcc313a1fc4dab6e907ff5"
+    }
+  ]
+}

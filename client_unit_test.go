@@ -354,3 +354,46 @@ func TestExcute_TransportError(t *testing.T) {
 		t.Errorf("excute() error = %v, want wrapping %v", err, ErrHTTPFailure)
 	}
 }
+
+func TestQueryValue(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{"large whole float", float64(1000000), "1000000"},
+		{"very large float", float64(1e21), "1000000000000000000000"},
+		{"fraction", 0.5, "0.5"},
+		{"small fraction", 1e-7, "0.0000001"},
+		{"string", "completed", "completed"},
+		{"bool", true, "true"},
+		{"int", 42, "42"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := queryValue(tt.value); got != tt.want {
+				t.Errorf("queryValue(%v) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSignedBody(t *testing.T) {
+	params := map[string]any{"country": "VN"}
+
+	if got := signedBody(&request{Method: http.MethodGet, Params: params}); got != nil {
+		t.Errorf("signedBody(GET) = %v, want nil", got)
+	}
+	if got := signedBody(&request{Method: http.MethodPost, Params: params}); got == nil {
+		t.Error("signedBody(POST) = nil, want the params")
+	}
+}
+
+func TestUserResposneIsAliasOfUserResponse(t *testing.T) {
+	takesCurrent := func(r *UserResponse[User]) string { return r.RequestID }
+
+	if got := takesCurrent(&UserResposne[User]{RequestID: "r1"}); got != "r1" {
+		t.Errorf("RequestID = %q, want %q", got, "r1")
+	}
+}

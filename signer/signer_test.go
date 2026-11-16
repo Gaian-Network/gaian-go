@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gaiannetwork/gaian-go/signer"
+	"github.com/Gaian-Network/gaian-go/v2/signer"
 	"github.com/google/uuid"
 )
 

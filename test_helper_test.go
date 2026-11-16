@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	gaian "github.com/gaiannetwork/gaian-go"
+	gaian "github.com/Gaian-Network/gaian-go/v2"
 )
 
 // Env vars read by newTestClient and the getTest* fixture helpers below.

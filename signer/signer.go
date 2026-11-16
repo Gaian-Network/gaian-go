@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -19,6 +20,10 @@ var (
 	ErrInvalidSecretKey = errors.New("invalid secret key")
 )
 
+// SignParams describes the request to sign. Path may be percent-encoded
+// or already decoded. Query is the raw query string exactly as sent,
+// without the leading '?'. Body is the JSON body value; leave it nil for
+// GET requests and requests without a body.
 type SignParams struct {
 	Method string
 	Path   string
@@ -26,6 +31,10 @@ type SignParams struct {
 	Body   any
 }
 
+// BuildHeaders returns the X-GAIAN-KEY, X-GAIAN-SIGNATURE,
+// X-GAIAN-TIMESTAMP and X-REQUEST-ID headers for one request. The
+// signature covers the decoded path without ':' and the body with its
+// keys sorted; a nil body and an empty JSON object both sign as "".
 func BuildHeaders(apiKey, secretKey string, payload SignParams) (map[string]string, error) {
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
@@ -34,7 +43,7 @@ func BuildHeaders(apiKey, secretKey string, payload SignParams) (map[string]stri
 		return nil, fmt.Errorf("gaian signer: %w", err)
 	}
 
-	message := apiKey + payload.Method + payload.Path + payload.Query + sortedBody + timestamp
+	message := apiKey + payload.Method + signedPath(payload.Path) + payload.Query + sortedBody + timestamp
 	signature := Sign(secretKey, message)
 
 	requestID := uuid.New().String()
@@ -47,6 +56,17 @@ func BuildHeaders(apiKey, secretKey string, payload SignParams) (map[string]stri
 	}
 
 	return headers, nil
+}
+
+// signedPath returns the path the gateway signs: percent-decoded, with
+// every ':' removed. A path that is not valid percent-encoding is used
+// as given.
+func signedPath(path string) string {
+	if decoded, err := url.PathUnescape(path); err == nil {
+		path = decoded
+	}
+
+	return strings.ReplaceAll(path, ":", "")
 }
 
 func marshalSorted(v any) (string, error) {
@@ -62,6 +82,10 @@ func marshalSorted(v any) (string, error) {
 	var body map[string]any
 	if err := json.Unmarshal(raw, &body); err != nil {
 		return string(raw), err
+	}
+
+	if len(body) == 0 {
+		return "", nil
 	}
 
 	return buildSortedBody(body)
