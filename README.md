@@ -17,12 +17,15 @@ Go client for the [Gaian Network](https://gaian.network) **v2 API** — a single
     - [Create a user](#create-a-user)
     - [Get a user by ID or wallet](#get-a-user-by-id-or-wallet)
     - [Check market access](#check-market-access)
+    - [KYC requirements per market](#kyc-requirements-per-market)
+    - [Payment methods](#payment-methods)
     - [List / get orders](#list--get-orders)
   - [Wallets](#wallets)
   - [KYC](#kyc)
     - [Hosted KYC link](#hosted-kyc-link)
     - [Submit KYC information directly](#submit-kyc-information-directly)
     - [Update KYC information](#update-kyc-information)
+    - [Import a shared KYC session](#import-a-shared-kyc-session)
   - [Organization](#organization)
   - [Payments](#payments)
     - [Parse a QR code](#parse-a-qr-code)
@@ -30,7 +33,10 @@ Go client for the [Gaian Network](https://gaian.network) **v2 API** — a single
     - [Place an order](#place-an-order)
     - [Verify the on-chain transaction](#verify-the-on-chain-transaction)
     - [Poll order status](#poll-order-status)
+    - [Exchange rates](#exchange-rates)
+    - [User limits](#user-limits)
   - [Banks (direct bank transfer)](#banks-direct-bank-transfer)
+- [Webhooks](#webhooks)
 - [Response envelopes](#response-envelopes)
 - [Error handling](#error-handling)
 - [Configuration](#configuration)
@@ -162,13 +168,34 @@ if resp.Data.Markets["VN"].Status != gaian.MarketApproved {
 | `gaian.MarketNotStarted` | Nothing submitted yet for this market |
 | `gaian.MarketRejected` | Rejected — check `RejectReason` (populated for PH/BR only) |
 
+#### KYC requirements per market
+
+```go
+resp, err := client.GetMarketRequirements(ctx, &gaian.GetMarketRequirementsRequest{UserID: userID})
+vn := resp.Data.Markets["VN"]
+fmt.Println(vn.RequiredFields, vn.MissingFields)
+```
+
+Field names are the JSON names of `SubmitKYCRequest` (for example `nationalId`, `kycReport`). `MissingFields` is what the user still has to provide for that market.
+
+#### Payment methods
+
+```go
+resp, err := client.GetPaymentMethods(ctx, &gaian.GetPaymentMethodsRequest{UserID: userID})
+for _, m := range *resp.Data {
+    fmt.Println(m.Method, m.Name, m.Status) // gaian.PaymentMethodQR / gaian.PaymentMethodCard
+}
+```
+
+`Status` uses the same values as `MarketStatus`. `RejectReason` and `Action` are `nil` unless the method is rejected.
+
 #### List / get orders
 
 ```go
 resp, err := client.ListUserOrders(ctx, &gaian.ListUserOrdersRequest{
     UserID:   userID,
     Page:     1,
-    PageSize: 20,
+    PageSize: 20, // default 50, at most 100
     Status:   "completed", // optional filter
 })
 for _, o := range resp.Items {
@@ -227,7 +254,7 @@ resp, err := client.SubmitKYC(ctx, &gaian.SubmitKYCRequest{
     DateOfBirth:        "1990-01-15",
     Nationality:        "VN",
     NationalID:         "012345678901",
-    Type:               "national_id",
+    Type:               gaian.DocumentTypeIDCard,
     ExpiryDate:         "2025-01-01",
     AddressLine1:       "123 Le Loi",
     City:               "Ho Chi Minh City",
@@ -242,7 +269,16 @@ resp, err := client.SubmitKYC(ctx, &gaian.SubmitKYCRequest{
 fmt.Println(resp.Data.KYCStatus)
 ```
 
-`FrontIDImage`/`BackIDImage`/`HoldIDImage` are `*string` — leave them `nil` to omit entirely (some flows don't require ID images at submission time).
+`FrontIDImage`/`BackIDImage`/`HoldIDImage`/`KYCReport` are `*string` — leave them `nil` to omit entirely (some flows don't require ID images at submission time). `KYCReport` is required by some markets; `GetMarketRequirements` lists `kycReport` when it is.
+
+`Gender`, `PhoneCountryCode` and `PhoneNumber` are optional: an empty value is not sent.
+
+| `DocumentType` | Value |
+|---|---|
+| `gaian.DocumentTypeIDCard` | `ID_CARD` |
+| `gaian.DocumentTypePassport` | `PASSPORT` |
+| `gaian.DocumentTypeDriversLicense` | `DRIVERS_LICENSE` |
+| `gaian.DocumentTypeResidencePermit` | `RESIDENCE_PERMIT` |
 
 #### Update KYC information
 
@@ -256,6 +292,20 @@ resp, err := client.UpdateKYC(ctx, &gaian.UpdateKYCRequest{
 })
 ```
 
+#### Import a shared KYC session
+
+For a user who already passed KYC with a partner application (reusable KYC). The partner gives you a share token:
+
+```go
+resp, err := client.ImportSharedKYC(ctx, &gaian.ImportSharedKYCRequest{
+    UserID:     userID,
+    ShareToken: shareToken,
+})
+fmt.Println(resp.Data.SessionID, resp.Data.Status)
+```
+
+Returns 400 for an invalid or expired token, 404 for an unknown user, 409 when the user has already submitted KYC.
+
 ---
 
 ### Organization
@@ -265,7 +315,7 @@ resp, err := client.GetOrganizationBalance(ctx, &gaian.GetOrganizationBalanceReq
 fmt.Printf("%s %s available\n", resp.Data.AvailableBalance, resp.Data.Currency)
 ```
 
-Restricted to tenants on the prefund billing model.
+Restricted to tenants on the prefund billing model. `resp.Data.WalletAddress` and `resp.Data.Chain` are `*string`: the prefund deposit wallet, or `nil` when none is configured.
 
 ---
 
@@ -281,6 +331,19 @@ resp, err := client.ParseQR(ctx, &gaian.ParseQRRequest{QRString: qrString, Count
 fmt.Println(resp.Data.BankBin, resp.Data.AccountNumber)
 ```
 
+QR codes from Brazil, Argentina, Peru and Bolivia need the payer's identity (one of `UserID`, `WalletAddress`, `Email`); without it the API answers 400 with code `IDENTITY_REQUIRED`. Peru also takes `Network` (`"YAPE"` or `"PLIN"`):
+
+```go
+resp, err := client.ParseQR(ctx, &gaian.ParseQRRequest{
+    QRString: qrString,
+    Country:  "PE",
+    Network:  "YAPE",
+    UserID:   userID,
+})
+```
+
+`resp.Data.BankName` is a `*string`, `nil` when the QR carries no bank name.
+
 #### Create a quote
 
 ```go
@@ -294,6 +357,10 @@ resp, err := client.Quote(ctx, &gaian.QuoteRequest{
 quoteID := resp.Data.QuoteID
 ```
 
+Identify the payer with exactly one of `UserID`, `WalletAddress` or `Email`. The SDK does not check this; the API answers 400 when none or more than one is set. Optional fields: `Network` (`"YAPE"` or `"PLIN"`, Peru only) and `FromAddress` (the on-chain wallet the deposit must come from, when it is not a wallet linked to the user).
+
+In the response, `SettlementAmount` = `SettlementBaseUSD` + `ProtocolFeeUSD` + `MinimumFeeUSD` + `TenantFeeUSD` (all decimal strings).
+
 | `ChainID` | Chain |
 |---|---|
 | `gaian.ChainEthereum` | Ethereum (1) |
@@ -303,6 +370,9 @@ quoteID := resp.Data.QuoteID
 | `gaian.ChainBase` | Base (8453) |
 | `gaian.ChainArbitrum` | Arbitrum (42161) |
 | `gaian.ChainSolana` | Solana (101) |
+| `gaian.ChainStellar` | Stellar (148) |
+| `gaian.ChainAvalanche` | Avalanche (43114) |
+| `gaian.ChainArc` | Arc (5042002) |
 
 Prefunded quote (no on-chain step, no `ChainID`):
 
@@ -340,6 +410,8 @@ resp, err := client.PlaceOrder(ctx, &gaian.PlaceOrderRequest{QuoteID: quoteID})
 // resp.Data.EncodedTransaction is what you sign and broadcast on-chain.
 txHash := broadcastTransaction(resp.Data.EncodedTransaction)
 ```
+
+The response also carries `DepositAddress`, `TokenAddress`, `SettlementAmount`, `SettlementAmountBaseUnits`, `SettlementCurrency` and `Memo`. Attach `Memo` to the deposit when it is not empty (chains such as Stellar need it).
 
 Prefunded order (no on-chain step — go straight to polling `GetOrderStatus`):
 
@@ -400,6 +472,34 @@ for {
 
 `VerifyStatus` (returned by `VerifyOrder`) is a **separate type** from `OrderStatus` — their integer values overlap (both have a `1`) but mean different things. Don't compare across the two.
 
+#### Exchange rates
+
+```go
+resp, err := client.GetExchangeRates(ctx, &gaian.GetExchangeRatesRequest{
+    Country:            "VN",   // optional: empty returns every supported country
+    SettlementCurrency: "USDC", // optional: the API defaults to USDC
+})
+for _, r := range resp.Data.Rates {
+    fmt.Println(r.Country, r.FiatCurrency, r.ExchangeRate)
+}
+```
+
+These rates are indicative (`IndicativeOnly` is always `true`). Only a quote binds a rate.
+
+#### User limits
+
+```go
+resp, err := client.GetUserLimits(ctx, &gaian.GetUserLimitsRequest{
+    UserID:  userID,
+    Country: "VN", // optional: empty returns every configured country
+})
+for _, c := range resp.Data.Countries {
+    fmt.Println(c.Country, c.CanTransact, c.MaxNextTransactionUSD)
+}
+```
+
+`MaxNextTransactionUSD` is the largest order the user can place right now. `MaxPerDayUSD`, `DailyRemainingUSD` and `Weekly` are `nil` when that limit does not apply. USD figures here are `float64` because the API sends JSON numbers: use them for display and pre-checks, not for accounting.
+
 ---
 
 ### Banks (direct bank transfer)
@@ -423,14 +523,46 @@ verify, err := client.VerifyAccount(ctx, &gaian.VerifyAccountRequest{
 
 ---
 
+## Webhooks
+
+Gaian signs every webhook delivery with the endpoint's secret. Verify it before trusting the payload, and pass the body exactly as received (do not decode and re-encode it):
+
+```go
+func handleWebhook(w http.ResponseWriter, r *http.Request) {
+    body, err := io.ReadAll(r.Body)
+    if err != nil {
+        http.Error(w, "cannot read body", http.StatusBadRequest)
+        return
+    }
+
+    err = gaian.VerifyWebhook(gaian.VerifyWebhookParams{
+        Secret:    webhookSecret,
+        Signature: r.Header.Get("X-Gaian-Signature"),
+        Timestamp: r.Header.Get("X-Gaian-Timestamp"),
+        Body:      body,
+    })
+    if err != nil {
+        http.Error(w, "invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    // body is authentic: decode it and handle the event
+    w.WriteHeader(http.StatusOK)
+}
+```
+
+`VerifyWebhook` returns `gaian.ErrInvalidWebhookSignature` when the signature does not match, and `gaian.ErrWebhookTimestampOutOfTolerance` when it matches but the timestamp is more than 300 seconds from now, in the past or the future. Change the window with `ToleranceSeconds`. The comparison is constant-time.
+
+---
+
 ## Response envelopes
 
 Every method returns one of two generic wrappers (`response.go`):
 
-- **`UserResponse[T]`** — `{data, requestId}` — used by User/KYC/Wallet/Organization endpoints. `UserResposne[T]` is a deprecated alias of it.
-- **`PaymentResponse[T]`** — `{success, requestId, data}` — used by Payment endpoints (`ParseQR`, `Quote*`, `PlaceOrder*`, `VerifyOrder`, `GetOrderStatus`, `ListBanks`, `VerifyAccount`).
+- **`UserResponse[T]`** — `{data, requestId}` — used by User/KYC/Wallet/Organization endpoints (including `ImportSharedKYC`, `GetMarketRequirements`, `GetPaymentMethods`). `UserResposne[T]` is a deprecated alias of it.
+- **`PaymentResponse[T]`** — `{success, requestId, data}` — used by Payment endpoints (`ParseQR`, `Quote*`, `PlaceOrder*`, `VerifyOrder`, `GetOrderStatus`, `ListBanks`, `VerifyAccount`, `GetExchangeRates`, `GetUserLimits`).
 
-`ListUserOrders` is the one exception — its response has `data`/`pagination`/`requestId` as siblings at the top level, so it returns `*ListUserOrdersResponse` directly instead of a wrapped envelope.
+`ListUserOrders` is the one exception — its body is the `{data, requestId}` envelope with a `pagination` sibling, so it returns `*ListUserOrdersResponse` directly (`Items` is the `data` array).
 
 Check each method's doc comment (`go doc gaian.<Method>`) if you're unsure which shape applies.
 

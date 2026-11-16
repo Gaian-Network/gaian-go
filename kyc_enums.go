@@ -13,8 +13,10 @@ const (
 type DocumentType string
 
 const (
-	DocumentTypeIDCard   DocumentType = "ID_CARD"
-	DocumentTypePassport DocumentType = "PASSPORT"
+	DocumentTypeIDCard          DocumentType = "ID_CARD"
+	DocumentTypePassport        DocumentType = "PASSPORT"
+	DocumentTypeDriversLicense  DocumentType = "DRIVERS_LICENSE"
+	DocumentTypeResidencePermit DocumentType = "RESIDENCE_PERMIT"
 )
 
 // OccupationCode constrains the SubmitKYCRequest.Occupation field.

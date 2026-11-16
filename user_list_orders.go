@@ -10,8 +10,8 @@ import (
 
 // ListUserOrdersRequest paginates and optionally filters a user's order
 // history. Status, Page, and PageSize are all optional — leave them at
-// the zero value to get the API's defaults (all statuses, page 1, 20
-// per page).
+// the zero value to get the API's defaults (all statuses, page 1, 50
+// per page). PageSize is at most 100.
 type ListUserOrdersRequest struct {
 	UserID   string `param:"userId" json:"-"`
 	Status   string `json:"status,omitempty"`
@@ -21,11 +21,10 @@ type ListUserOrdersRequest struct {
 
 // ListUserOrdersResponse is a page of a user's order history.
 //
-// Unlike every other endpoint in this SDK, RequestID/Items/Pagination
-// are siblings at the top level of the response body — there's no outer
-// {data: ...} envelope wrapping this one. So, unlike the rest of the
-// User-service endpoints, ListUserOrders returns *ListUserOrdersResponse
-// directly instead of *UserResposne[ListUserOrdersResponse].
+// The body is the usual {requestId, data} envelope with a "pagination"
+// sibling next to "data", so ListUserOrders returns
+// *ListUserOrdersResponse directly instead of
+// *UserResponse[ListUserOrdersResponse]. Items is the "data" array.
 type ListUserOrdersResponse struct {
 	RequestID  string      `json:"requestId"`
 	Items      []UserOrder `json:"data"`

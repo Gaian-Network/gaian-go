@@ -159,3 +159,28 @@ func TestUpdateKYC_InvalidJSON(t *testing.T) {
 		t.Fatal("expected a decode error for a malformed response body, got nil")
 	}
 }
+
+func TestUpdateKYC_SendsKYCReportAndNewDocumentType(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockHTTPClient{
+		response: mockResponse(http.StatusOK, `{"data":{"userId":"usr_1","kycStatus":"PROCESSING"},"requestId":"req_1"}`), //nolint:bodyclose // response body closed by client
+	}
+	client := newMockClient(t, mock)
+
+	report := "data:application/pdf;base64,AAAA"
+	docType := string(gaian.DocumentTypeResidencePermit)
+	if _, err := client.UpdateKYC(context.Background(), &gaian.UpdateKYCRequest{
+		UserID: "usr_1", Type: &docType, KYCReport: &report,
+	}); err != nil {
+		t.Fatalf("UpdateKYC: %v", err)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(mock.lastBody(), &body); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if len(body) != 2 || body["type"] != "RESIDENCE_PERMIT" || body["kycReport"] != report {
+		t.Errorf("body = %v", body)
+	}
+}

@@ -8,13 +8,19 @@ import (
 
 // QuotePrefundRequest is QuoteRequest without ChainID — the payment
 // settles from the tenant's prefunded balance, so there's no on-chain
-// step. Requires the tenant to be on the prefund billing model.
+// step. Requires the tenant to be on the prefund billing model. Exactly
+// one of WalletAddress, UserID, or Email must be set.
 type QuotePrefundRequest struct {
 	QRString           string  `json:"qrString"`
 	Amount             float64 `json:"amount"`
 	Country            string  `json:"country,omitempty"`
 	SettlementCurrency string  `json:"settlementCurrency"`
-	UserID             string  `json:"userId"`
+	WalletAddress      string  `json:"walletAddress,omitempty"`
+	UserID             string  `json:"userId,omitempty"`
+	Email              string  `json:"email,omitempty"`
+	// Network is the phone-payment rail for Peru QR codes: "YAPE" or
+	// "PLIN". Leave empty for every other country.
+	Network string `json:"network,omitempty"`
 }
 
 // QuotePrefundResponse is the same shape as QuoteResponse (ChainID will

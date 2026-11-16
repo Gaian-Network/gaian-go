@@ -9,25 +9,38 @@ import (
 // ParseQRRequest carries a raw QR payment string to decode. Country is
 // an optional ISO-3166-1 alpha-2 hint; leave it empty to auto-detect
 // from the QR's bank BIN.
+//
+// QR codes from Brazil, Argentina, Peru and Bolivia need the payer's
+// identity: set one of WalletAddress, UserID, or Email, or the API
+// answers 400 with code IDENTITY_REQUIRED.
 type ParseQRRequest struct {
 	QRString string `json:"qrString"`
 	Country  string `json:"country,omitempty"`
+	// Network is the phone-payment rail for Peru QR codes: "YAPE" or
+	// "PLIN". Leave empty for every other country.
+	Network       string `json:"network,omitempty"`
+	WalletAddress string `json:"walletAddress,omitempty"`
+	UserID        string `json:"userId,omitempty"`
+	Email         string `json:"email,omitempty"`
 }
 
 // QRInfo is the parsed content of a QR payment code, shared by ParseQR
 // and the QR-based Quote/QuotePrefund responses.
 type QRInfo struct {
-	IsValid         bool           `json:"isValid"`
-	EncodedString   string         `json:"encodedString"`
-	Country         string         `json:"country"`
-	QRProvider      string         `json:"qrProvider"`
-	BankBin         string         `json:"bankBin"`
-	AccountNumber   string         `json:"accountNumber"`
-	Amount          *float64       `json:"amount,omitempty"`
-	Currency        *string        `json:"currency,omitempty"`
-	Purpose         *string        `json:"purpose,omitempty"`
-	BeneficiaryName string         `json:"beneficiaryName"`
-	DetailedQRInfo  map[string]any `json:"detailedQrInfo,omitempty"`
+	IsValid         bool     `json:"isValid"`
+	EncodedString   string   `json:"encodedString"`
+	Country         string   `json:"country"`
+	QRProvider      string   `json:"qrProvider"`
+	BankBin         string   `json:"bankBin"`
+	AccountNumber   string   `json:"accountNumber"`
+	Amount          *float64 `json:"amount,omitempty"`
+	Currency        *string  `json:"currency,omitempty"`
+	Purpose         *string  `json:"purpose,omitempty"`
+	BeneficiaryName string   `json:"beneficiaryName"`
+	// BankName is the display name of the bank or wallet holding the
+	// account. Only ParseQR returns it; it is nil when the QR has none.
+	BankName       *string        `json:"bankName,omitempty"`
+	DetailedQRInfo map[string]any `json:"detailedQrInfo,omitempty"`
 }
 
 // ParseQRResponse is the decoded QR content.

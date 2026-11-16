@@ -21,7 +21,7 @@ type UpdateKYCRequest struct {
 	DateOfBirth        *string `json:"dateOfBirth,omitempty"`
 	Gender             *string `json:"gender,omitempty"` // "male" | "female"
 	Nationality        *string `json:"nationality,omitempty"`
-	Type               *string `json:"type,omitempty"` // "ID_CARD" | "PASSPORT"
+	Type               *string `json:"type,omitempty"` // "ID_CARD" | "PASSPORT" | "DRIVERS_LICENSE" | "RESIDENCE_PERMIT"
 	IssueDate          *string `json:"issueDate,omitempty"`
 	ExpiryDate         *string `json:"expiryDate,omitempty"`
 	AddressLine1       *string `json:"addressLine1,omitempty"`
@@ -36,6 +36,8 @@ type UpdateKYCRequest struct {
 	FrontIDImage       *string `json:"frontIdImage,omitempty"`
 	BackIDImage        *string `json:"backIdImage,omitempty"`
 	HoldIDImage        *string `json:"holdIdImage,omitempty"`
+	// KYCReport is the KYC report document as a base64 data URI.
+	KYCReport *string `json:"kycReport,omitempty"`
 }
 
 // UpdateKYCResponse mirrors the user's full KYC record back after the

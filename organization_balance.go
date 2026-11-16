@@ -17,6 +17,10 @@ type GetOrganizationBalanceResponse struct {
 	AvailableBalance  string `json:"availableBalance"`
 	TotalSpent        string `json:"totalSpent"`
 	PendingSettlement string `json:"pendingSettlement"`
+	// WalletAddress is the tenant's prefund deposit wallet, and Chain
+	// the chain it lives on. Both are nil when no wallet is configured.
+	WalletAddress *string `json:"walletAddress"`
+	Chain         *string `json:"chain"`
 }
 
 // GetOrganizationBalance returns the prefund balance for the tenant that

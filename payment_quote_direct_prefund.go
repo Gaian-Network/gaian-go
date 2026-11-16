@@ -19,6 +19,9 @@ type QuoteDirectPrefundRequest struct {
 	UserID             string  `json:"userId,omitempty"`
 	Email              string  `json:"email,omitempty"`
 	BeneficiaryName    string  `json:"beneficiaryName,omitempty"`
+	// Network is "YAPE" or "PLIN". The API reads it on QR quotes only
+	// and ignores it on direct-transfer quotes.
+	Network string `json:"network,omitempty"`
 }
 
 // QuoteDirectPrefundResponse is the same shape as QuoteDirectResponse

@@ -36,21 +36,31 @@ type QuoteDirectRequest struct {
 	// bank-verified account name (see VerifyAccount) always takes
 	// precedence.
 	BeneficiaryName string `json:"beneficiaryName,omitempty"`
+	// Network is "YAPE" or "PLIN". The API reads it on QR quotes only
+	// and ignores it on direct-transfer quotes.
+	Network string `json:"network,omitempty"`
+	// FromAddress is the on-chain wallet the deposit must come from. Set
+	// it to pay from a wallet that is not linked to the user; it does
+	// not replace the identity field.
+	FromAddress string `json:"fromAddress,omitempty"`
 }
 
 // QuoteDirectResponse is the result of a direct-bank-transfer quote
-// request.
+// request. SettlementAmount equals SettlementBaseUSD + ProtocolFeeUSD +
+// MinimumFeeUSD + TenantFeeUSD; all five are decimal strings.
 type QuoteDirectResponse struct {
 	QuoteID            string       `json:"quoteId"`
 	Route              Route        `json:"route"`
 	FiatAmount         float64      `json:"fiatAmount"`
 	FiatCurrency       string       `json:"fiatCurrency"`
 	SettlementAmount   string       `json:"settlementAmount"`
+	SettlementBaseUSD  string       `json:"settlementBaseUsd"`
 	SettlementCurrency string       `json:"settlementCurrency"`
 	ChainID            ChainID      `json:"chainId,omitempty"`
 	ExchangeRate       string       `json:"exchangeRate"`
 	ProtocolFeeUSD     string       `json:"protocolFeeUsd"`
 	MinimumFeeUSD      string       `json:"minimumFeeUsd"`
+	TenantFeeUSD       string       `json:"tenantFeeUsd"`
 	QRInfo             DirectQRInfo `json:"qrInfo"`
 	ExpiresAt          string       `json:"expiresAt"`
 }

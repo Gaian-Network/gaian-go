@@ -12,12 +12,15 @@ import (
 // hosted flow — see GenerateKYCLink for that alternative). Gender, Type,
 // Occupation, and Nationality are constrained to the enum types defined
 // in kyc_enums.go, matching the values the API accepts.
+//
+// Gender, PhoneCountryCode and PhoneNumber are optional: leave them
+// empty and they are not sent.
 type SubmitKYCRequest struct {
 	UserID             string          `param:"userId" json:"-"`
 	FirstName          string          `json:"firstName"`
 	LastName           string          `json:"lastName"`
 	Email              string          `json:"email"`
-	Gender             Gender          `json:"gender"`
+	Gender             Gender          `json:"gender,omitempty"`
 	DateOfBirth        string          `json:"dateOfBirth"`
 	Nationality        NationalityCode `json:"nationality"`
 	NationalID         string          `json:"nationalId"`
@@ -31,11 +34,15 @@ type SubmitKYCRequest struct {
 	ZipCode            string          `json:"zipCode,omitempty"`
 	CountryOfResidence string          `json:"countryOfResidence"`
 	Occupation         OccupationCode  `json:"occupation"`
-	PhoneCountryCode   string          `json:"phoneCountryCode"`
-	PhoneNumber        string          `json:"phoneNumber"`
+	PhoneCountryCode   string          `json:"phoneCountryCode,omitempty"`
+	PhoneNumber        string          `json:"phoneNumber,omitempty"`
 	FrontIDImage       *string         `json:"frontIdImage,omitempty"`
 	BackIDImage        *string         `json:"backIdImage,omitempty"`
 	HoldIDImage        *string         `json:"holdIdImage,omitempty"`
+	// KYCReport is the KYC report document as a base64 data URI. Some
+	// markets require it; GetMarketRequirements lists it under
+	// "kycReport" when they do. Leave nil to omit.
+	KYCReport *string `json:"kycReport,omitempty"`
 }
 
 // SubmitKYCResponse is returned immediately after submission — KYCStatus

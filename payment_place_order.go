@@ -15,15 +15,26 @@ type PlaceOrderRequest struct {
 }
 
 // PlaceOrderResponse carries the on-chain transaction the caller must
-// sign and broadcast to fund the order.
+// sign and broadcast to fund the order. SettlementAmount is a decimal
+// string in token units; SettlementAmountBaseUnits is the same amount as
+// an integer string in the token's smallest unit.
 type PlaceOrderResponse struct {
-	OrderID            string  `json:"orderId"`
-	Status             int     `json:"status"`
-	StatusLabel        string  `json:"statusLabel"`
-	ChainID            ChainID `json:"chainId"`
-	DepositAddress     string  `json:"depositAddress"`
-	EncodedTransaction string  `json:"encodedTransaction"`
-	ExpiresAt          string  `json:"expiresAt"`
+	OrderID        string  `json:"orderId"`
+	Status         int     `json:"status"`
+	StatusLabel    string  `json:"statusLabel"`
+	ChainID        ChainID `json:"chainId"`
+	DepositAddress string  `json:"depositAddress"`
+	// TokenAddress is the contract (or mint) address of the settlement
+	// token on ChainID.
+	TokenAddress              string `json:"tokenAddress"`
+	SettlementAmount          string `json:"settlementAmount"`
+	SettlementAmountBaseUnits string `json:"settlementAmountBaseUnits"`
+	SettlementCurrency        string `json:"settlementCurrency"`
+	EncodedTransaction        string `json:"encodedTransaction"`
+	ExpiresAt                 string `json:"expiresAt"`
+	// Memo must be attached to the deposit on chains that need one (for
+	// example Stellar). It is empty on every other chain.
+	Memo string `json:"memo,omitempty"`
 }
 
 // PlaceOrder consumes a quote (from Quote or QuoteDirect) and creates an
