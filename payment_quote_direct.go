@@ -36,9 +36,6 @@ type QuoteDirectRequest struct {
 	// bank-verified account name (see VerifyAccount) always takes
 	// precedence.
 	BeneficiaryName string `json:"beneficiaryName,omitempty"`
-	// Network is "YAPE" or "PLIN". The API reads it on QR quotes only
-	// and ignores it on direct-transfer quotes.
-	Network string `json:"network,omitempty"`
 	// FromAddress is the on-chain wallet the deposit must come from. Set
 	// it to pay from a wallet that is not linked to the user; it does
 	// not replace the identity field.

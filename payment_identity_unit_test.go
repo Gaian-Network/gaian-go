@@ -143,7 +143,7 @@ func TestQuotePrefund_IdentityAndNetwork(t *testing.T) {
 	}
 }
 
-func TestQuoteDirect_NetworkAndFromAddress(t *testing.T) {
+func TestQuoteDirect_EmailAndFromAddress(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockHTTPClient{
@@ -154,14 +154,14 @@ func TestQuoteDirect_NetworkAndFromAddress(t *testing.T) {
 
 	resp, err := client.QuoteDirect(context.Background(), &gaian.QuoteDirectRequest{
 		AccountNumber: "123", Code: "BCP", Amount: 100, Country: "PE", ChainID: gaian.ChainBase,
-		SettlementCurrency: "USDC", Email: "a@example.com", Network: "YAPE", FromAddress: "0xfrom",
+		SettlementCurrency: "USDC", Email: "a@example.com", FromAddress: "0xfrom",
 	})
 	if err != nil {
 		t.Fatalf("QuoteDirect: %v", err)
 	}
 
 	body := sentBody(t, mock)
-	if body["network"] != "YAPE" || body["fromAddress"] != "0xfrom" || body["email"] != "a@example.com" {
+	if body["fromAddress"] != "0xfrom" || body["email"] != "a@example.com" {
 		t.Errorf("body = %v", body)
 	}
 	if _, ok := body["userId"]; ok {
@@ -172,7 +172,7 @@ func TestQuoteDirect_NetworkAndFromAddress(t *testing.T) {
 	}
 }
 
-func TestQuoteDirectPrefund_NetworkSent(t *testing.T) {
+func TestQuoteDirectPrefund_WalletAddressSent(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockHTTPClient{
@@ -182,13 +182,13 @@ func TestQuoteDirectPrefund_NetworkSent(t *testing.T) {
 
 	if _, err := client.QuoteDirectPrefund(context.Background(), &gaian.QuoteDirectPrefundRequest{
 		AccountNumber: "123", Code: "BCP", Amount: 100, Country: "PE", SettlementCurrency: "USDC",
-		WalletAddress: "0xabc", Network: "PLIN",
+		WalletAddress: "0xabc",
 	}); err != nil {
 		t.Fatalf("QuoteDirectPrefund: %v", err)
 	}
 
 	body := sentBody(t, mock)
-	if body["network"] != "PLIN" || body["walletAddress"] != "0xabc" {
+	if body["walletAddress"] != "0xabc" {
 		t.Errorf("body = %v", body)
 	}
 }
