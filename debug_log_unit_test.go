@@ -128,3 +128,57 @@ func TestDebugOffLogsNothing(t *testing.T) {
 		t.Errorf("debug is off but the SDK logged: %q", logged)
 	}
 }
+
+func TestDebugLogOmitsQuery(t *testing.T) {
+	t.Parallel()
+
+	const queryValue = "QUERY_VALUE_SENTINEL"
+
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{"success response", http.StatusOK, `{"data":[],"requestId":"r1"}`},
+		{"error response", http.StatusBadRequest, `{"message":"rejected"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mock := &mockHTTPClient{response: mockResponse(tt.status, tt.body)} //nolint:bodyclose // response body closed by client
+			logger := &recordingLogger{}
+
+			client, err := gaian.NewClient(defaultSandboxBaseURL, testAPIKey, testSecretKey,
+				gaian.WithHTTPClient(mock),
+				gaian.WithLogger(logger),
+				gaian.WithDebug(true),
+			)
+			if err != nil {
+				t.Fatalf("NewClient: %v", err)
+			}
+
+			_, _ = client.ListUserOrders(context.Background(), &gaian.ListUserOrdersRequest{
+				UserID: "u1",
+				Status: queryValue,
+				Page:   7,
+			})
+
+			if got := mock.lastReq.URL.RawQuery; !strings.Contains(got, queryValue) {
+				t.Fatalf("query was not sent: %q", got)
+			}
+
+			logged := logger.all()
+			if !strings.Contains(logged, "/api/v2/users/u1/orders") {
+				t.Fatalf("debug logging is on but the path was not logged: %q", logged)
+			}
+
+			for _, unwanted := range []string{queryValue, "status=", "page=", "?", defaultSandboxBaseURL} {
+				if strings.Contains(logged, unwanted) {
+					t.Errorf("debug log contains %q:\n%s", unwanted, logged)
+				}
+			}
+		})
+	}
+}

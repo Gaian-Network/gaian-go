@@ -16,13 +16,9 @@ type CreateWalletRequest struct {
 	Chain   string `json:"chain,omitempty"`
 }
 
-// CreateWalletResponse is the wallet that was just linked.
-//
-// Note: per the current openapi spec this response is a bare object, not
-// wrapped in the usual envelope like every sibling user-service
-// endpoint — worth re-verifying against a live v2 environment once
-// available. If that holds, this method may need to skip the
-// UserResposne wrapper and unmarshal CreateWalletResponse directly.
+// CreateWalletResponse is the wallet that was just linked. It arrives in
+// the usual {data, requestId} envelope, like every other user-service
+// endpoint.
 type CreateWalletResponse = WalletInfo
 
 // CreateWallet links a new wallet to req.UserID. The first wallet added

@@ -20,10 +20,10 @@ var (
 	ErrInvalidSecretKey = errors.New("invalid secret key")
 )
 
-// SignParams describes the request to sign. Path may be percent-encoded
-// or already decoded. Query is the raw query string exactly as sent,
-// without the leading '?'. Body is the JSON body value; leave it nil for
-// GET requests and requests without a body.
+// SignParams describes the request to sign. Path is the request path
+// exactly as sent, percent-encoded. Query is the raw query string exactly
+// as sent, without the leading '?'. Body is the JSON body value; leave it
+// nil for GET requests and requests without a body.
 type SignParams struct {
 	Method string
 	Path   string
@@ -32,9 +32,15 @@ type SignParams struct {
 }
 
 // BuildHeaders returns the X-GAIAN-KEY, X-GAIAN-SIGNATURE,
-// X-GAIAN-TIMESTAMP and X-REQUEST-ID headers for one request. The
-// signature covers the decoded path without ':' and the body with its
-// keys sorted; a nil body and an empty JSON object both sign as "".
+// X-GAIAN-TIMESTAMP and X-REQUEST-ID headers for one request.
+//
+// payload.Path must be the percent-encoded path as sent on the wire.
+// BuildHeaders percent-decodes it once, so a path that was already
+// decoded and contains a literal '%' is decoded a second time and the
+// gateway rejects the signature.
+//
+// The signature covers the decoded path without ':' and the body with
+// its keys sorted; a nil body and an empty JSON object both sign as "".
 func BuildHeaders(apiKey, secretKey string, payload SignParams) (map[string]string, error) {
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 

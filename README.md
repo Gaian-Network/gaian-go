@@ -553,6 +553,8 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 `VerifyWebhook` returns `gaian.ErrInvalidWebhookSignature` when the signature does not match, and `gaian.ErrWebhookTimestampOutOfTolerance` when it matches but the timestamp is more than 300 seconds from now, in the past or the future. Change the window with `ToleranceSeconds`. The comparison is constant-time.
 
+A valid signature does not make a delivery unique: Gaian retries, and a captured request can be replayed inside the tolerance window. Store the `X-Gaian-Delivery` header of every delivery you have handled, and acknowledge a delivery whose ID you have already seen without handling it again.
+
 ---
 
 ## Response envelopes
@@ -587,6 +589,8 @@ if err != nil {
 ```
 
 `IsNotFound`, `IsConflict`, `IsUnauthorized` and `IsForbidden` also work on wrapped errors. `errors.Is(err, gaian.ErrUnexpectedStatus)` stays true for every `*APIError`.
+
+Do not log `apiErr.Body` as is. It is the raw response and can carry personal data such as names, bank account numbers or KYC details. Log `StatusCode`, `Code` and `RequestID` instead.
 
 ---
 

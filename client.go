@@ -38,9 +38,9 @@
 // Every method returns one of two generic wrappers from response.go:
 // UserResponse[T] for User/KYC/Wallet/Organization endpoints, or
 // PaymentResponse[T] for Payment endpoints (quote/orders/verify/status/
-// parseQr) — the two backing services shape their responses (and errors)
-// differently. Check the doc comment on each method for which one it
-// returns.
+// parseQr/banks, GetExchangeRates, GetUserLimits) — the two backing
+// services shape their responses (and errors) differently. Check the doc
+// comment on each method for which one it returns.
 package gaian
 
 import (
@@ -244,7 +244,7 @@ func (c *Client) buildGETRequest(req *request, fullURL string, headers http.Head
 		return err
 	}
 
-	c.logDebug("http request", "method", req.Method, "url", fullURL)
+	c.logDebug("http request", "method", req.Method, "path", req.Endpoint)
 
 	req.FullURL = fullURL
 	req.Header = headers
@@ -291,7 +291,7 @@ func (c *Client) buildRequest(req *request) error {
 		return err
 	}
 
-	c.logDebug("http request", "method", req.Method, "url", fullURL)
+	c.logDebug("http request", "method", req.Method, "path", req.Endpoint)
 
 	req.FullURL = fullURL
 	req.Header = headers
@@ -329,7 +329,7 @@ func (c *Client) excute(ctx context.Context, req *request) ([]byte, error) {
 		return nil, err
 	}
 
-	c.logDebug("http response", "method", req.Method, "url", req.FullURL, "status", resp.StatusCode)
+	c.logDebug("http response", "method", req.Method, "path", req.Endpoint, "status", resp.StatusCode)
 
 	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, newAPIError(resp, responseBody)
